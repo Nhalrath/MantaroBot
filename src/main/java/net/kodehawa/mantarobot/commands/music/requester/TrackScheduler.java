@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2020 David Rubio Escares / Kodehawa
+ * Copyright (C) 2016-2021 David Rubio Escares / Kodehawa
  *
  *  Mantaro is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
  *  GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Mantaro.  If not, see http://www.gnu.org/licenses/
+ * along with Mantaro. If not, see http://www.gnu.org/licenses/
  */
 
 package net.kodehawa.mantarobot.commands.music.requester;
@@ -31,14 +31,15 @@ import net.kodehawa.mantarobot.data.I18n;
 import net.kodehawa.mantarobot.data.MantaroData;
 import net.kodehawa.mantarobot.utils.commands.EmoteReference;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public class TrackScheduler extends PlayerEventListenerAdapter {
+    private static final Random random = new Random();
+    private static final ScheduledExecutorService scheduledExecutor = Executors.newSingleThreadScheduledExecutor();
     private final String guildId;
     private final ConcurrentLinkedDeque<AudioTrack> queue;
     private final List<String> voteSkips;
@@ -174,8 +175,10 @@ public class TrackScheduler extends PlayerEventListenerAdapter {
                                     )
                                     .build()
                     ).queue(message -> {
-                        lastMessageSentAt = System.currentTimeMillis();
-                        message.delete().queueAfter(90, TimeUnit.SECONDS);
+                        if (getRequestedTextChannel() != null) {
+                            lastMessageSentAt = System.currentTimeMillis();
+                            message.delete().queueAfter(90, TimeUnit.SECONDS, scheduledExecutor);
+                        }
                     });
                 }
             }
@@ -196,9 +199,7 @@ public class TrackScheduler extends PlayerEventListenerAdapter {
             //Avoid massive spam of when song error in mass.
             if ((lastErrorSentAt == 0 || lastErrorSentAt + 60000 < System.currentTimeMillis()) && errorCount < 10) {
                 lastErrorSentAt = System.currentTimeMillis();
-                getRequestedTextChannel().sendMessageFormat(
-                        language.get("commands.music_general.track_error"), EmoteReference.SAD
-                ).queue();
+                getRequestedTextChannel().sendMessageFormat(language.get("commands.music_general.track_error"), EmoteReference.SAD).queue();
             }
 
             errorCount++;
@@ -267,15 +268,14 @@ public class TrackScheduler extends PlayerEventListenerAdapter {
 
         var premium = managedDatabase.getGuild(guild).isPremium();
         try {
-            var ch = getRequestedTextChannel();
+            final var ch = getRequestedTextChannel();
             if (ch != null && ch.canTalk()) {
-                ch.sendMessageFormat(
-                        language.get("commands.music_general.queue_finished"),
-                        EmoteReference.MEGA, premium ? "" :
-                                String.format(language.get("commands.music_general.premium_beg"),
-                                        EmoteReference.HEART
-                                )
-                ).queue(message -> message.delete().queueAfter(30, TimeUnit.SECONDS));
+                String beg = "";
+                if (!premium && random.nextBoolean()) {
+                    beg = String.format(language.get("commands.music_general.premium_beg"), EmoteReference.HEART);
+                }
+
+                ch.sendMessageFormat(language.get("commands.music_general.queue_finished"), EmoteReference.MEGA, beg).queue();
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -285,12 +285,12 @@ public class TrackScheduler extends PlayerEventListenerAdapter {
         requestedChannel = 0;
         errorCount = 0;
 
-        //If not set to null, those two objects will always be in scope and dangle around in the heap forever.
-        //Some AudioTrack objects were of almost 500kb of size, I guess 100k of those can cause a meme.
+        // If not set to null, those two objects will always be in scope and dangle around in the heap forever.
+        // Some AudioTrack objects were of almost 500kb of size, I guess 100k of those can cause a meme.
         currentTrack = null;
         previousTrack = null;
 
-        //Disconnect this audio player.
+        // Disconnect this audio player.
         MantaroBot.getInstance().getAudioManager().resetMusicManagerFor(guildId);
     }
 

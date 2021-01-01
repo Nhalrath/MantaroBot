@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2020 David Rubio Escares / Kodehawa
+ * Copyright (C) 2016-2021 David Rubio Escares / Kodehawa
  *
  *  Mantaro is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
  *  GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Mantaro.  If not, see http://www.gnu.org/licenses/
+ * along with Mantaro. If not, see http://www.gnu.org/licenses/
  */
 
 package net.kodehawa.mantarobot.commands.currency.profile;
@@ -126,20 +126,13 @@ public enum ProfileComponent {
     BADGES(EmoteReference.HEART, i18nContext -> i18nContext.get("commands.profile.badges"), (holder, i18nContext) -> {
         final var badges = holder.getBadges();
         if (badges.isEmpty()) {
-            return i18nContext.get("general.dust");
+            return i18nContext.get("commands.profile.no_badges");
         }
 
-        var displayBadges = badges
-                .stream()
+        return badges.stream()
                 .limit(5)
                 .map(Badge::getUnicode)
                 .collect(Collectors.joining(" \u2009\u2009"));
-
-        if (displayBadges.isEmpty()) {
-            return i18nContext.get("commands.profile.no_badges");
-        } else {
-            return displayBadges;
-        }
     }, true, false),
     QUESTS(EmoteReference.PENCIL, i18nContext -> i18nContext.get("commands.profile.quests.header"), (holder, i18nContext) -> {
         var tracker = holder.getPlayer().getData().getQuests();

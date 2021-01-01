@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2020 David Rubio Escares / Kodehawa
+ * Copyright (C) 2016-2021 David Rubio Escares / Kodehawa
  *
  *  Mantaro is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
  *  GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Mantaro.  If not, see http://www.gnu.org/licenses/
+ * along with Mantaro. If not, see http://www.gnu.org/licenses/
  */
 
 package net.kodehawa.mantarobot.core;
@@ -78,7 +78,7 @@ public class CommandRegistry {
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
-    public void process(GuildMessageReceivedEvent event, DBGuild dbGuild, String cmdName, String content, String prefix) {
+    public void process(GuildMessageReceivedEvent event, DBGuild dbGuild, String cmdName, String content, String prefix, boolean isMention) {
         final var managedDatabase = MantaroData.db();
         final var start = System.currentTimeMillis();
 
@@ -87,7 +87,7 @@ public class CommandRegistry {
 
         if (command == null) {
             // We will create a proper I18nContext once the custom command goes through, if it does. We don't need it otherwise.
-            CustomCmds.handle(prefix, cmdName, new Context(event, new I18nContext(), content), guildData, content);
+            CustomCmds.handle(prefix, cmdName, new Context(event, new I18nContext(), content, isMention), guildData, content);
             return;
         }
 
@@ -101,8 +101,7 @@ public class CommandRegistry {
                 return;
             }
 
-            channel.sendMessage(
-                    """
+            channel.sendMessage("""
                     :x: You have been blacklisted from using all of Mantaro's functions, likely for botting or hitting the spam filter.
                     If you wish to get more details on why, or appeal, don't hesitate to join the support server and ask, but be sincere.
                     """
@@ -250,7 +249,7 @@ public class CommandRegistry {
         }
 
         if (!executedNew) {
-            cmd.run(new Context(event, new I18nContext(guildData, userData), content), cmdName, content);
+            cmd.run(new Context(event, new I18nContext(guildData, userData), content, isMention), cmdName, content);
         }
 
         log.debug("!! COMMAND INVOKE: command:{}, user:{}, guild:{}, channel:{}",

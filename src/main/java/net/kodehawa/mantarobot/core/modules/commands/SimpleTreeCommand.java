@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2020 David Rubio Escares / Kodehawa
+ * Copyright (C) 2016-2021 David Rubio Escares / Kodehawa
  *
  *  Mantaro is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
  *  GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Mantaro.  If not, see http://www.gnu.org/licenses/
+ * along with Mantaro. If not, see http://www.gnu.org/licenses/
  */
 
 package net.kodehawa.mantarobot.core.modules.commands;
@@ -54,7 +54,7 @@ public abstract class SimpleTreeCommand extends AbstractCommand implements ITree
             throw new IllegalArgumentException("No subcommands registered!");
         }
 
-        var command = subCommands.get(args[0]);
+        var command= subCommands.get(args[0]);
 
         if (command == null) {
             defaultTrigger(context, commandName, args[0]);
@@ -65,7 +65,7 @@ public abstract class SimpleTreeCommand extends AbstractCommand implements ITree
             return;
         }
 
-        command.run(new Context(context.getEvent(), context.getLanguageContext(), args[1]), commandName + " " + args[0], args[1]);
+        command.run(new Context(context.getEvent(), context.getLanguageContext(), args[1], context.isMentionPrefix()), commandName + " " + args[0], args[1]);
     }
 
     public void setPredicate(Predicate<Context> predicate) {

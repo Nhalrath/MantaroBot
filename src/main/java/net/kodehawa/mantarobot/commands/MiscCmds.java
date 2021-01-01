@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2020 David Rubio Escares / Kodehawa
+ * Copyright (C) 2016-2021 David Rubio Escares / Kodehawa
  *
  *  Mantaro is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
  *  GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Mantaro.  If not, see http://www.gnu.org/licenses/
+ * along with Mantaro. If not, see http://www.gnu.org/licenses/
  */
 
 package net.kodehawa.mantarobot.commands;
@@ -66,7 +66,7 @@ public class MiscCmds {
             if (role == null) {
                 ctx.sendLocalized("commands.iam.deleted_role", EmoteReference.ERROR);
 
-                //delete the non-existent autorole.
+                // delete the non-existent autorole.
                 dbGuild.getData().getAutoroles().remove(autoroleName);
                 dbGuild.saveAsync();
             } else {
@@ -76,7 +76,6 @@ public class MiscCmds {
                 }
                 try {
                     ctx.getGuild().addRoleToMember(ctx.getMember(), role)
-                            //don't translate the reason!
                             .reason("Auto-assignable roles assigner (~>iam)")
                             .queue(aVoid -> {
                                 if (message == null || message.isEmpty())
@@ -106,8 +105,6 @@ public class MiscCmds {
             Role role = ctx.getGuild().getRoleById(autoroles.get(autoroleName));
             if (role == null) {
                 ctx.sendLocalized("commands.iam.deleted_role", EmoteReference.ERROR);
-
-                //delete the non-existent autorole.
                 dbGuild.getData().getAutoroles().remove(autoroleName);
                 dbGuild.saveAsync();
             } else {
@@ -117,13 +114,12 @@ public class MiscCmds {
                 }
 
                 try {
-                    ctx.getGuild().removeRoleFromMember(ctx.getMember(), role)
-                            .queue(aVoid -> {
-                                if (message == null || message.isEmpty())
-                                    ctx.sendLocalized("commands.iamnot.success", EmoteReference.OK, ctx.getAuthor().getName(), role.getName());
-                                else
-                                    ctx.sendStrippedLocalized(message);
-                            });
+                    ctx.getGuild().removeRoleFromMember(ctx.getMember(), role).queue(__ -> {
+                        if (message == null || message.isEmpty())
+                            ctx.sendLocalized("commands.iamnot.success", EmoteReference.OK, ctx.getAuthor().getName(), role.getName());
+                        else
+                            ctx.sendStrippedLocalized(message);
+                    });
                 } catch (PermissionException pex) {
                     ctx.sendLocalized("commands.iam.error", EmoteReference.ERROR, role.getName());
                 }

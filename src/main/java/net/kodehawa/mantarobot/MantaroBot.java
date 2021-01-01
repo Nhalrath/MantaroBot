@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2020 David Rubio Escares / Kodehawa
+ * Copyright (C) 2016-2021 David Rubio Escares / Kodehawa
  *
  *  Mantaro is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
  *  GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Mantaro.  If not, see http://www.gnu.org/licenses/
+ * along with Mantaro. If not, see http://www.gnu.org/licenses/
  */
 
 package net.kodehawa.mantarobot;
@@ -166,36 +166,7 @@ public class MantaroBot {
         log.info("Finished loading basic components. Current status: {}", MantaroCore.getLoadState());
         MantaroData.config().save();
         ImageBoard.setUserAgent(MantaroInfo.USER_AGENT);
-
-        // Handle the removal of mutes.
-        ScheduledExecutorService muteExecutor = Executors.newSingleThreadScheduledExecutor(
-                new ThreadFactoryBuilder().setNameFormat("Mantaro Mute Task").build()
-        );
-
-        muteExecutor.scheduleAtFixedRate(MuteTask::handle, 0, 1, TimeUnit.MINUTES);
-
-        // Handle the delivery of reminders, assuming this is the master node.
-        if (isMasterNode()) {
-            ScheduledExecutorService reminderExecutor = Executors.newSingleThreadScheduledExecutor(
-                    new ThreadFactoryBuilder().setNameFormat("Mantaro Reminder Handler").build()
-            );
-
-            reminderExecutor.scheduleAtFixedRate(ReminderTask::handle, 0, 30, TimeUnit.SECONDS);
-        }
-
-        // Yes, this is needed.
-        ScheduledExecutorService ratelimitMapExecutor = Executors.newSingleThreadScheduledExecutor(
-                new ThreadFactoryBuilder().setNameFormat("Mantaro Ratelimit Clear").build()
-        );
-
-        ratelimitMapExecutor.scheduleAtFixedRate(RatelimitUtils.ratelimitedUsers::clear, 0, 24, TimeUnit.HOURS);
-
-        // Handle posting statistics.
-        ScheduledExecutorService postExecutor = Executors.newSingleThreadScheduledExecutor(
-                new ThreadFactoryBuilder().setNameFormat("Mantaro Statistics Posting").build()
-        );
-
-        postExecutor.scheduleAtFixedRate(() -> postStats(getShardManager()), 10, 5, TimeUnit.MINUTES);
+        this.startExecutors();
 
         // This is basically done because Andesite doesn't destroy players on shutdown
         // when using LL compat. This causes players to not work on next startup.
@@ -282,6 +253,41 @@ public class MantaroBot {
                 .collect(Collectors.toList());
     }
 
+    private void startExecutors() {
+        log.info("Starting executors...");
+        // Handle the delivery of reminders, assuming this is the master node (Node 0).
+        if (isMasterNode()) {
+            ScheduledExecutorService reminderExecutor = Executors.newSingleThreadScheduledExecutor(
+                    new ThreadFactoryBuilder().setNameFormat("Mantaro Reminder Handler").build()
+            );
+            reminderExecutor.scheduleAtFixedRate(ReminderTask::handle, 0, 30, TimeUnit.SECONDS);
+        }
+
+        // Handle the removal of mutes.
+        ScheduledExecutorService muteExecutor = Executors.newSingleThreadScheduledExecutor(
+                new ThreadFactoryBuilder().setNameFormat("Mantaro Mute Task").build()
+        );
+        muteExecutor.scheduleAtFixedRate(MuteTask::handle, 0, 1, TimeUnit.MINUTES);
+
+        // Yes, this is needed.
+        ScheduledExecutorService ratelimitMapExecutor = Executors.newSingleThreadScheduledExecutor(
+                new ThreadFactoryBuilder().setNameFormat("Mantaro Ratelimit Clear").build()
+        );
+        ratelimitMapExecutor.scheduleAtFixedRate(RatelimitUtils.ratelimitedUsers::clear, 0, 24, TimeUnit.HOURS);
+
+        // Handle posting statistics.
+        ScheduledExecutorService postExecutor = Executors.newSingleThreadScheduledExecutor(
+                new ThreadFactoryBuilder().setNameFormat("Mantaro Statistics Posting").build()
+        );
+        postExecutor.scheduleAtFixedRate(() -> postStats(getShardManager()), 10, 5, TimeUnit.MINUTES);
+
+        // Handle cleaning up stray lavalink players.
+        ScheduledExecutorService lavalinkCleanExecutor = Executors.newSingleThreadScheduledExecutor(
+                new ThreadFactoryBuilder().setNameFormat("Mantaro Player Cleaner").build()
+        );
+        lavalinkCleanExecutor.scheduleAtFixedRate(this::cleanPlayers, 10, 10, TimeUnit.MINUTES);
+    }
+
     public void startCheckingBirthdays() {
         Metrics.THREAD_POOL_COLLECTOR.add("birthday-tracker", executorService);
         log.info("Starting to check birthdays...");
@@ -343,6 +349,21 @@ public class MantaroBot {
                 log.debug("Sent process shard stats to Redis (Global) [Running Shards: {}] -> {}",
                         manager.getShardsRunning(), json
                 );
+            }
+        }
+    }
+
+    private void cleanPlayers() {
+        for (var manager : getAudioManager().getMusicManagers().entrySet()) {
+            var musicManager = manager.getValue();
+            final var trackScheduler = musicManager.getTrackScheduler();
+            final var guild = trackScheduler.getGuild();
+            final var player = musicManager.getLavaLink().getPlayer();
+
+            // We have no track, no queue, and it's not awaiting to be killed.
+            if (trackScheduler.getCurrentTrack() == null && trackScheduler.getQueue().isEmpty() &&
+                    !musicManager.isAwaitingDeath() && guild != null && player.getPlayingTrack() != null) {
+                audioManager.resetMusicManagerFor(guild.getId());
             }
         }
     }

@@ -29,16 +29,16 @@ plugins {
 }
 
 mainClassName = "net.kodehawa.mantarobot.MantaroBot"
-def ver = new Version(major: 6, minor: 0, revision: 10)
+def ver = new Version(major: 6, minor: 1, revision: 0)
 version ver.toString()
 
 sourceCompatibility = 15
 targetCompatibility = 15
 
 repositories {
-    mavenLocal()
-    jcenter()
     mavenCentral()
+    jcenter()
+
     maven { url "https://dl.bintray.com/kodehawa/maven" }
     maven { url 'https://dl.bintray.com/natanbc/maven' }
     maven { url 'https://dl.bintray.com/sedmelluq/com.sedmelluq' }
@@ -58,14 +58,14 @@ task generateLanguageList {
 
 dependencies {
     // Base
-    implementation 'net.dv8tion:JDA:4.2.0_222'
+    implementation 'net.dv8tion:JDA:4.2.0_225'
     implementation 'club.minnced:discord-webhooks:0.5.3'
 
     // Music
-    implementation ('com.github.FredBoat:Lavalink-Client:eb26770e9b') {
+    implementation ('com.github.FredBoat:Lavalink-Client:7492a36') {
         exclude group: 'com.sedmelluq', module: 'lavaplayer'
     } // Lavalink-Client includes LP, but we specify it below, so we need to exclude it.
-    implementation 'com.sedmelluq:lavaplayer:1.3.63'
+    implementation 'com.sedmelluq:lavaplayer:1.3.66'
     implementation 'com.sedmelluq:lavaplayer-ext-youtube-rotator:0.2.3'
 
     // JSON
@@ -73,13 +73,13 @@ dependencies {
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.12.0'
 
     // Core
-    implementation 'io.github.classgraph:classgraph:4.8.95'
+    implementation 'io.github.classgraph:classgraph:4.8.98'
     implementation 'ch.qos.logback:logback-classic:1.2.3'
     implementation 'com.google.guava:guava:30.1-jre'
 
     // Database
     implementation 'com.rethinkdb:rethinkdb-driver:2.4.4'
-    implementation 'redis.clients:jedis:3.4.0'
+    implementation 'redis.clients:jedis:3.4.1'
 
     // Utilities
     implementation 'net.jodah:expiringmap:0.5.9'

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2020 David Rubio Escares / Kodehawa
+ * Copyright (C) 2016-2021 David Rubio Escares / Kodehawa
  *
  *  Mantaro is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -431,7 +431,7 @@ public class ItemHelper {
 
             var broken = "";
             var brokenItem = getBrokenItemFrom(item);
-            if (brokenItem != null && random.nextInt(100) >= 20) {
+            if (brokenItem != null && (item.getValue() > 10000 || random.nextInt(100) >= 20)) {
                 broken = "\n" + String.format(languageContext.get("commands.mine.broken_drop"),
                         EmoteReference.HEART, brokenItem.getEmoji(), brokenItem.getName()
                 );

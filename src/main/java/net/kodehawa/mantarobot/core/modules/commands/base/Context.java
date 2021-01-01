@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2020 David Rubio Escares / Kodehawa
+ * Copyright (C) 2016-2021 David Rubio Escares / Kodehawa
  *
  *  Mantaro is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
  *  GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Mantaro.  If not, see http://www.gnu.org/licenses/
+ * along with Mantaro. If not, see http://www.gnu.org/licenses/
  */
 
 package net.kodehawa.mantarobot.core.modules.commands.base;
@@ -39,6 +39,7 @@ import net.kodehawa.mantarobot.utils.commands.CustomFinderUtil;
 import redis.clients.jedis.JedisPool;
 
 import java.util.EnumSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -50,11 +51,13 @@ public class Context {
     private final GuildMessageReceivedEvent event;
     private final String content;
     private I18nContext languageContext;
+    private boolean isMentionPrefix;
 
-    public Context(GuildMessageReceivedEvent event, I18nContext languageContext, String content) {
+    public Context(GuildMessageReceivedEvent event, I18nContext languageContext, String content, boolean isMentionPrefix) {
         this.event = event;
         this.languageContext = languageContext;
         this.content = content;
+        this.isMentionPrefix = isMentionPrefix;
     }
 
     public MantaroBot getBot() {
@@ -86,11 +89,23 @@ public class Context {
     }
 
     public List<User> getMentionedUsers() {
-        return getEvent().getMessage().getMentionedUsers();
+        final var mentionedUsers = getEvent().getMessage().getMentionedUsers();
+        if (isMentionPrefix) {
+            final var mutable = new LinkedList<>(mentionedUsers);
+            return mutable.subList(1, mutable.size());
+        }
+
+        return mentionedUsers;
     }
 
     public List<Member> getMentionedMembers() {
-        return getEvent().getMessage().getMentionedMembers();
+        final var mentionedMembers = getEvent().getMessage().getMentionedMembers();
+        if (isMentionPrefix) {
+            final var mutable = new LinkedList<>(mentionedMembers);
+            return mutable.subList(1, mutable.size());
+        }
+
+        return mentionedMembers;
     }
 
     public Member getMember() {
@@ -187,7 +202,13 @@ public class Context {
     }
 
     public boolean hasReactionPerms() {
-        return getSelfMember().hasPermission(getChannel(), Permission.MESSAGE_ADD_REACTION);
+        return getSelfMember().hasPermission(getChannel(), Permission.MESSAGE_ADD_REACTION) &&
+                // Somehow also needs this?
+                getSelfMember().hasPermission(getChannel(), Permission.MESSAGE_HISTORY);
+    }
+
+    public String getContent() {
+        return content;
     }
 
     public String[] getArguments() {
@@ -241,7 +262,7 @@ public class Context {
     }
 
     public Task<List<Member>> findMember(String query, Message message) {
-        return CustomFinderUtil.lookupMember(getGuild(), message,this, query);
+        return CustomFinderUtil.lookupMember(getGuild(), this, query);
     }
 
     public User retrieveUserById(String id) {
@@ -269,6 +290,10 @@ public class Context {
         } catch (Exception ignored) { }
 
         return member;
+    }
+
+    public boolean isMentionPrefix() {
+        return isMentionPrefix;
     }
 
     public JedisPool getJedisPool() {

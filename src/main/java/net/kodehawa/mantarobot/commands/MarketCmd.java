@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2020 David Rubio Escares / Kodehawa
+ * Copyright (C) 2016-2021 David Rubio Escares / Kodehawa
  *
  *  Mantaro is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
  *  GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Mantaro.  If not, see http://www.gnu.org/licenses/
+ * along with Mantaro. If not, see http://www.gnu.org/licenses/
  */
 
 package net.kodehawa.mantarobot.commands;
@@ -55,10 +55,9 @@ public class MarketCmd {
     public void market(CommandRegistry cr) {
         final IncreasingRateLimiter rateLimiter = new IncreasingRateLimiter.Builder()
                 .limit(1)
-                .spamTolerance(2)
+                .spamTolerance(4)
                 .cooldown(3, TimeUnit.SECONDS)
-                .maxCooldown(3, TimeUnit.SECONDS)
-                .randomIncrement(true)
+                .maxCooldown(10, TimeUnit.SECONDS)
                 .pool(MantaroData.getDefaultJedisPool())
                 .prefix("market")
                 .premiumAware(true)
@@ -257,6 +256,11 @@ public class MarketCmd {
 
             @Override
             protected void call(Context ctx, I18nContext languageContext, String content) {
+                if (content.isEmpty()) {
+                    ctx.sendLocalized("commands.market.price.no_item", EmoteReference.ERROR);
+                    return;
+                }
+
                 var item = ItemHelper.fromAnyNoId(content, ctx.getLanguageContext()).orElse(null);
 
                 if (item == null) {
@@ -476,15 +480,14 @@ public class MarketCmd {
                     }
 
                     var playerInventory = isSeasonal ? seasonalPlayer.getInventory() : player.getInventory();
-                    var stack = playerInventory.getStackOf(itemToBuy);
-                    if ((stack != null && !stack.canJoin(new ItemStack(itemToBuy, itemNumber))) || itemNumber > 5000) {
-                        //assume overflow
+                    if (playerInventory.getAmount(itemToBuy) + itemNumber > 5000) {
                         ctx.sendLocalized("commands.market.buy.item_limit_reached", EmoteReference.ERROR);
                         return;
                     }
 
-                    var removedMoney = isSeasonal ? seasonalPlayer.removeMoney(itemToBuy.getValue() * itemNumber) :
-                            player.removeMoney(itemToBuy.getValue() * itemNumber);
+                    var value = itemToBuy.getValue() * itemNumber;
+                    var removedMoney = isSeasonal ? seasonalPlayer.removeMoney(value) :
+                            player.removeMoney(value);
 
                     if (removedMoney) {
                         playerInventory.process(new ItemStack(itemToBuy, itemNumber));
@@ -499,20 +502,19 @@ public class MarketCmd {
                         }
 
                         var playerMoney = isSeasonal ? seasonalPlayer.getMoney() : player.getCurrentMoney();
-
+                        var message = "commands.market.buy.success";
                         if (itemToBuy instanceof Breakable) {
-                            ctx.sendLocalized("commands.market.buy.success_breakable",
-                                    EmoteReference.OK, itemNumber, itemToBuy.getEmoji(), itemToBuy.getValue() * itemNumber,
-                                    playerMoney
-                            );
-                        } else {
-                            ctx.sendLocalized("commands.market.buy.success",
-                                    EmoteReference.OK, itemNumber, itemToBuy.getEmoji(), itemToBuy.getValue() * itemNumber,
-                                    playerMoney
-                            );
+                            message = "commands.market.buy.success_breakable";
                         }
+
+                        if (itemToBuy instanceof Potion) {
+                            message = "commands.market.buy.success_potion";
+                        }
+
+                        ctx.sendLocalized(message, EmoteReference.OK, itemNumber, itemToBuy.getEmoji(), value, playerMoney);
+
                     } else {
-                        ctx.sendLocalized("commands.market.buy.not_enough_money", EmoteReference.STOP);
+                        ctx.sendLocalized("commands.market.buy.not_enough_money", EmoteReference.STOP, player.getCurrentMoney(), value);
                     }
                 } catch (Exception e) {
                     ctx.send(EmoteReference.ERROR + languageContext.get("general.invalid_syntax"));

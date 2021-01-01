@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2020 David Rubio Escares / Kodehawa
+ * Copyright (C) 2016-2021 David Rubio Escares / Kodehawa
  *
  *  Mantaro is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
  *  GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Mantaro.  If not, see http://www.gnu.org/licenses/
+ * along with Mantaro. If not, see http://www.gnu.org/licenses/
  */
 
 package net.kodehawa.mantarobot.db.entities.helpers;
@@ -74,6 +74,7 @@ public class PlayerData {
     private boolean resetWarning = false;
     private InventorySortType inventorySortType = InventorySortType.AMOUNT;
     private boolean hiddenLegacy = false;
+    private boolean newPlayerNotice = false;
 
     //lol?
     //this is needed so it actually works, even though it does absolutely nothing
@@ -411,6 +412,14 @@ public class PlayerData {
 
     public boolean isHiddenLegacy() {
         return hiddenLegacy;
+    }
+
+    public boolean isNewPlayerNotice() {
+        return newPlayerNotice;
+    }
+
+    public void setNewPlayerNotice(boolean newPlayerNotice) {
+        this.newPlayerNotice = newPlayerNotice;
     }
 
     @JsonIgnore

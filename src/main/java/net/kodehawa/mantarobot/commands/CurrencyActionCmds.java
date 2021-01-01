@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2020 David Rubio Escares / Kodehawa
+ * Copyright (C) 2016-2021 David Rubio Escares / Kodehawa
  *
  *  Mantaro is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
  *  GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Mantaro.  If not, see http://www.gnu.org/licenses/
+ * along with Mantaro. If not, see http://www.gnu.org/licenses/
  */
 
 package net.kodehawa.mantarobot.commands;
@@ -682,10 +682,21 @@ public class CurrencyActionCmds {
                     RandomCollection<Item> items = new RandomCollection<>();
                     var toDrop = handleChopDrop();
                     toDrop.forEach(i -> items.add(3, i));
+                    boolean overflow = false;
 
                     List<Item> list = new ArrayList<>(amount);
                     for (int i = 0; i < amount; i++) {
-                        list.add(items.next());
+                        Item it = items.next();
+                        if (playerInventory.getAmount(it) >= 5000) {
+                            overflow = true;
+                            continue;
+                        }
+
+                        list.add(it);
+                    }
+
+                    if (overflow) {
+                        extraMessage += "\n" + languageContext.get("commands.chop.overflow").formatted(EmoteReference.SAD);
                     }
 
                     ArrayList<ItemStack> ita = new ArrayList<>();
@@ -694,10 +705,15 @@ public class CurrencyActionCmds {
 
                     // Make so it drops some decent amount of wood lol
                     if (ita.stream().anyMatch(is -> is.getItem() == ItemReference.WOOD)) {
-                        ita.add(new ItemStack(ItemReference.WOOD, Math.max(1, random.nextInt(7))));
+                        int am = Math.max(1, random.nextInt(7));
+                        if (playerInventory.getAmount(ItemReference.WOOD) + am <= 5000) {
+                            ita.add(new ItemStack(ItemReference.WOOD, am));
+                        }
                     } else if (found) {
                         // Guarantee at least one wood.
-                        ita.add(new ItemStack(ItemReference.WOOD, 1));
+                        if (playerInventory.getAmount(ItemReference.WOOD) < 5000) {
+                            ita.add(new ItemStack(ItemReference.WOOD, 1));
+                        }
                     }
 
                     // Reduce item stacks (aka join them) and process it.

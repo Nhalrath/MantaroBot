@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2020 David Rubio Escares / Kodehawa
+ * Copyright (C) 2016-2021 David Rubio Escares / Kodehawa
  *
  *  Mantaro is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,7 +19,6 @@ package net.kodehawa.mantarobot.commands;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.eventbus.Subscribe;
-import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.kodehawa.mantarobot.MantaroBot;
 import net.kodehawa.mantarobot.commands.utils.birthday.BirthdayCacher;
@@ -226,44 +225,13 @@ public class BirthdayCmd {
                         var birthdays = guildCurrentBirthdays.entrySet().stream()
                                 .sorted(Comparator.comparingInt(i -> Integer.parseInt(i.getValue().day)))
                                 .filter(birthday -> ids.contains(birthday.getKey()))
-                                .map((entry) -> {
-                                    var birthday = entry.getValue().getBirthday().split("-");
-                                    Member member;
-                                    try {
-                                        member = guild.retrieveMemberById(entry.getKey(), false).complete();
-                                    } catch (Exception e) {
-                                        return "Unknown Member : " + birthday[0] + "-" + birthday[1];
-                                    }
+                                .limit(100)
+                                .collect(Collectors.toList());
 
-                                    return "+ %-20s : %s ".formatted(
-                                            member.getEffectiveName(),
-                                            birthday[0] + "-" + birthday[1]
-                                    );
-                                })
-                                .collect(Collectors.joining("\n"));
-
-                        var parts = DiscordUtils.divideString(1000, birthdays);
-                        var hasReactionPerms = ctx.hasReactionPerms();
-
-                        List<String> messages = new LinkedList<>();
-                        for (String part : parts) {
-                            messages.add(languageContext.get("commands.birthday.full_header").formatted(guild.getName(),
-                                    (parts.size() > 1 ?
-                                            (hasReactionPerms ? languageContext.get("general.arrow_react") :
-                                                    languageContext.get("general.text_menu")) : "") + "```diff\n%s```".formatted(part))
-                            );
-                        }
-
-                        if (parts.isEmpty()) {
-                            ctx.sendLocalized("commands.birthday.no_guild_birthdays", EmoteReference.ERROR);
-                            return;
-                        }
-
-                        if (hasReactionPerms) {
-                            DiscordUtils.list(ctx.getEvent(), 45, false, messages);
-                        } else {
-                            DiscordUtils.listText(ctx.getEvent(), 45, false, messages);
-                        }
+                        var bdIds = birthdays.stream().map(Map.Entry::getKey).toArray(String[]::new);
+                        guild.retrieveMembersByIds(bdIds).onSuccess(members ->
+                                sendBirthdayList(ctx, members, guildCurrentBirthdays, null, false)
+                        );
                     } else {
                         ctx.sendLocalized("commands.birthday.cache_not_running", EmoteReference.SAD);
                     }
@@ -332,49 +300,18 @@ public class BirthdayCmd {
                         var birthdays = guildCurrentBirthdays.entrySet().stream()
                                 .filter(bds -> bds.getValue().month.equals(currentMonth))
                                 .sorted(Comparator.comparingInt(i -> Integer.parseInt(i.getValue().day)))
-                                .map((entry) -> {
-                                    Guild guild = ctx.getGuild();
-                                    var birthday = entry.getValue().getBirthday().split("-");
+                                .limit(100)
+                                .collect(Collectors.toList());
 
-                                    Member member;
-                                    try {
-                                        member = guild.retrieveMemberById(entry.getKey(), false).complete();
-                                    } catch (Exception e) {
-                                        return "Unknown Member : " + birthday[0] + "-" + birthday[1];
-                                    }
-
-                                    return "+ %-20s : %s ".formatted(
-                                            member.getEffectiveName(),
-                                            birthday[0] + "-" + birthday[1]
-                                    );
-                                }).collect(Collectors.joining("\n"));
-
-                        // No birthdays to be seen here? (This month)
-                        if (birthdays.trim().isEmpty()) {
-                            ctx.sendLocalized("commands.birthday.no_guild_month_birthdays",
-                                    EmoteReference.ERROR, month + 1, EmoteReference.BLUE_SMALL_MARKER
-                            );
-
+                        if (birthdays.isEmpty()) {
+                            ctx.sendLocalized("commands.birthday.no_guild_month_birthdays", EmoteReference.ERROR, month + 1, EmoteReference.BLUE_SMALL_MARKER);
                             return;
                         }
 
-                        var parts = DiscordUtils.divideString(1000, birthdays);
-                        List<String> messages = new LinkedList<>();
-
-                        for (var part : parts) {
-                            messages.add(languageContext.get("commands.birthday.header").formatted(ctx.getGuild().getName(),
-                                    Utils.capitalize(calendar.getDisplayName(Calendar.MONTH, Calendar.LONG, Locale.ENGLISH))) +
-                                    (parts.size() > 1 ? (ctx.hasReactionPerms() ?
-                                            languageContext.get("general.arrow_react") :
-                                            languageContext.get("general.text_menu")) : "") + "```diff\n%s```".formatted(part)
-                            );
-                        }
-
-                        if (ctx.hasReactionPerms()) {
-                            DiscordUtils.list(ctx.getEvent(), 45, false, messages);
-                        } else {
-                            DiscordUtils.listText(ctx.getEvent(), 45, false, messages);
-                        }
+                        var bdIds = birthdays.stream().map(Map.Entry::getKey).toArray(String[]::new);
+                        ctx.getGuild().retrieveMembersByIds(bdIds).onSuccess(members ->
+                                sendBirthdayList(ctx, members, guildCurrentBirthdays, calendar, true)
+                        );
                     } else {
                         ctx.sendLocalized("commands.birthday.cache_not_running", EmoteReference.SAD);
                     }
@@ -384,6 +321,62 @@ public class BirthdayCmd {
                 }
             }
         });
+    }
+
+    private void sendBirthdayList(Context ctx, List<Member> members, Map<String, BirthdayCacher.BirthdayData> guildCurrentBirthdays,
+                                  Calendar calendar, boolean month) {
+        StringBuilder builder = new StringBuilder();
+        var languageContext = ctx.getLanguageContext();
+        var guild = ctx.getGuild();
+        var memberSort = members.stream()
+                .sorted(Comparator.comparingInt(i -> {
+                    var bd = guildCurrentBirthdays.get(i.getId());
+                    // So I don't forget later: this is equivalent to day + (month * 31)
+                    // And this is so we get a stable sort of day/month
+                    return Integer.parseInt(bd.day) + (Integer.parseInt(bd.month) << 5);
+                }))
+                .collect(Collectors.toList());
+
+        for (Member member : memberSort) {
+            var birthday = guildCurrentBirthdays.get(member.getId());
+            builder.append("+ %-20s : %s ".formatted(member.getEffectiveName(), birthday.getDay() + "-" + birthday.getMonth()));
+            builder.append("\n");
+        }
+
+        var parts = DiscordUtils.divideString(1000, builder);
+        var hasReactionPerms = ctx.hasReactionPerms();
+
+        List<String> messages = new LinkedList<>();
+        for (String part : parts) {
+            var help = languageContext.get("general.arrow_react");
+            if (!hasReactionPerms) {
+                help = languageContext.get("general.text_menu");
+            }
+
+            if (month && calendar != null) {
+                messages.add(
+                        languageContext.get("commands.birthday.header").formatted(
+                                ctx.getGuild().getName(),
+                                Utils.capitalize(calendar.getDisplayName(Calendar.MONTH, Calendar.LONG, Locale.ENGLISH))
+                        ) + "```diff\n%s```".formatted(part)
+                );
+            } else {
+                messages.add(languageContext.get("commands.birthday.full_header")
+                        .formatted(guild.getName(), (parts.size() > 1 ? help : "") + "```diff\n%s```".formatted(part))
+                );
+            }
+        }
+
+        if (parts.isEmpty()) {
+            ctx.sendLocalized("commands.birthday.no_guild_birthdays", EmoteReference.ERROR);
+            return;
+        }
+
+        if (hasReactionPerms) {
+            DiscordUtils.list(ctx.getEvent(), 45, false, messages);
+        } else {
+            DiscordUtils.listText(ctx.getEvent(), 45, false, messages);
+        }
     }
 
     public static Cache<String, ConcurrentHashMap<String, BirthdayCacher.BirthdayData>> getGuildBirthdayCache() {

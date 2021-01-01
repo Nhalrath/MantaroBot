@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2020 David Rubio Escares / Kodehawa
+ * Copyright (C) 2016-2021 David Rubio Escares / Kodehawa
  *
  *  Mantaro is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
  *  GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Mantaro.  If not, see http://www.gnu.org/licenses/
+ * along with Mantaro. If not, see http://www.gnu.org/licenses/
  */
 
 package net.kodehawa.mantarobot.utils;
@@ -182,14 +182,14 @@ public class Utils {
             var post = RequestBody.create(MediaType.parse("text/plain"), toSend);
 
             var toPost = new Request.Builder()
-                    .url("https://hasteb.in/documents")
+                    .url("https://hastebin.com/documents")
                     .header("User-Agent", MantaroInfo.USER_AGENT)
                     .header("Content-Type", "text/plain")
                     .post(post)
                     .build();
 
             try (var r = httpClient.newCall(toPost).execute()) {
-                return "https://hasteb.in/" + new JSONObject(r.body().string()).getString("key");
+                return "https://hastebin.com/" + new JSONObject(r.body().string()).getString("key");
             }
         } catch (Exception e) {
             return "cannot post data to hasteb.in";
