@@ -52,6 +52,7 @@ public class TrackScheduler extends PlayerEventListenerAdapter {
     private Repeat repeatMode;
     private long requestedChannel;
     private long errorCount = 0;
+    private boolean pausedManually = false;
 
     public TrackScheduler(Link player, String guildId) {
         this.audioPlayer = player;
@@ -103,6 +104,12 @@ public class TrackScheduler extends PlayerEventListenerAdapter {
             }
 
             if (repeatMode == Repeat.QUEUE) {
+                if (previousTrack == null) {
+                    currentTrack = null;
+                    onTrackStart();
+                    return;
+                }
+
                 queue(previousTrack.makeClone());
             }
         }
@@ -132,17 +139,6 @@ public class TrackScheduler extends PlayerEventListenerAdapter {
             //It's called mantaro
             if (voiceChannel == null) {
                 this.getAudioPlayer().destroy();
-                return;
-            }
-
-            //Force it in case it keeps going all the time?
-            if (errorCount > 20) {
-                getRequestedTextChannel().sendMessageFormat(
-                        language.get("commands.music_general.too_many_errors"),
-                        EmoteReference.ERROR
-                ).queue();
-
-                onStop();
                 return;
             }
 
@@ -261,7 +257,7 @@ public class TrackScheduler extends PlayerEventListenerAdapter {
 
         var guild = getGuild();
         if (guild == null) {
-            //Why?
+            // Why?
             this.getAudioPlayer().destroy();
             return;
         }
@@ -284,6 +280,7 @@ public class TrackScheduler extends PlayerEventListenerAdapter {
         // If not reset, this will come us to bite on next run.
         requestedChannel = 0;
         errorCount = 0;
+        pausedManually = false;
 
         // If not set to null, those two objects will always be in scope and dangle around in the heap forever.
         // Some AudioTrack objects were of almost 500kb of size, I guess 100k of those can cause a meme.
@@ -324,6 +321,14 @@ public class TrackScheduler extends PlayerEventListenerAdapter {
 
     public I18n getLanguage() {
         return this.language;
+    }
+
+    public boolean isPausedManually() {
+        return pausedManually;
+    }
+
+    public void setPausedManually(boolean pausedManually) {
+        this.pausedManually = pausedManually;
     }
 
     public void setRequestedChannel(long requestedChannel) {

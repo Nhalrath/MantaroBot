@@ -28,7 +28,6 @@ import net.kodehawa.mantarobot.commands.currency.TextChannelGround;
 import net.kodehawa.mantarobot.commands.custom.CustomCommandHandler;
 import net.kodehawa.mantarobot.commands.custom.v3.Parser;
 import net.kodehawa.mantarobot.commands.custom.v3.SyntaxException;
-import net.kodehawa.mantarobot.commands.info.stats.CommandStatsManager;
 import net.kodehawa.mantarobot.core.CommandRegistry;
 import net.kodehawa.mantarobot.core.command.processor.CommandProcessor;
 import net.kodehawa.mantarobot.core.modules.Module;
@@ -114,8 +113,6 @@ public class CustomCmds {
             return;
         }
 
-        CommandStatsManager.log("custom command");
-
         String response = values.get(random.nextInt(values.size()));
         try {
             new CustomCommandHandler(prefix, ctx, response, args).handle();
@@ -140,7 +137,6 @@ public class CustomCmds {
         }
 
         CustomCommand custom = db().getCustomCommand(id, name);
-        //yes
         if (custom == null)
             return null;
 
@@ -221,25 +217,40 @@ public class CustomCmds {
 
             @Override
             protected void call(Context ctx, I18nContext languageContext, String content) {
+                if (!ctx.getSelfMember().hasPermission(ctx.getChannel(), Permission.MESSAGE_EMBED_LINKS)) {
+                    ctx.sendLocalized("general.missing_embed_permissions");
+                    return;
+                }
+
                 List<String> commands = ctx.db().getCustomCommands(ctx.getGuild())
                         .stream()
                         .map(CustomCommand::getName)
                         .collect(Collectors.toList());
 
+                String description = languageContext.get("general.dust");
+                if (!commands.isEmpty()) {
+                    description = languageContext.get("commands.custom.ls.description") + "\n";
+                    description += commands.stream().map(cc -> "*`" + cc + "`*").collect(Collectors.joining(", "));
+                }
+
+                var cmds = DiscordUtils.divideString(900, ',', description);
                 EmbedBuilder builder = new EmbedBuilder()
                         .setAuthor(languageContext.get("commands.custom.ls.header"), null, ctx.getGuild().getIconUrl())
                         .setColor(ctx.getMember().getColor())
                         .setThumbnail("https://i.imgur.com/glP3VKI.png")
-                        .setDescription(languageContext.get("commands.custom.ls.description") + "\n" +
-                                (commands.isEmpty() ? languageContext.get("general.dust") :
-                                        checkString(commands.stream().map(cc -> "*`" + cc + "`*")
-                                                .collect(Collectors.joining(", ")))
-                                )
-                        ).setFooter(languageContext.get("commands.custom.ls.footer").formatted(commands.size()),
+                        .setFooter(languageContext.get("commands.custom.ls.footer").formatted(commands.size()),
                                 ctx.getAuthor().getEffectiveAvatarUrl()
                         );
 
-                ctx.send(builder.build());
+                if (ctx.hasReactionPerms()) {
+                    DiscordUtils.list(ctx.getEvent(), 120, false, 900,
+                            (p, total) -> builder.setFooter(String.format("Commands: %,d | Total Pages: %s | Current: %s", commands.size(), total, p)), cmds
+                    );
+                } else {
+                    DiscordUtils.listText(ctx.getEvent(), 120, false, 900,
+                            (p, total) -> builder.setFooter(String.format("Commands: %,d | Total Pages: %s | Current: %s", commands.size(),  total, p)), cmds
+                    );
+                }
             }
         }).createSubCommandAlias("list", "ls");
 
@@ -306,12 +317,13 @@ public class CustomCmds {
                 List<MessageEmbed.Field> fields = new ArrayList<>();
                 AtomicInteger count = new AtomicInteger();
                 for (String value : custom.getValues()) {
-                    String val = value;
+                    var val = value;
+                    var current = count.incrementAndGet();
                     if (value.length() > 900) {
-                        val = Utils.paste(value);
+                        val = languageContext.get("commands.custom.raw.too_large_view").formatted(custom.getName(), current);
                     }
 
-                    fields.add(new MessageEmbed.Field("Response N° " + count.incrementAndGet(), val, false));
+                    fields.add(new MessageEmbed.Field("Response N° " + current, val, false));
                 }
 
                 EmbedBuilder embed = baseEmbed(ctx.getEvent(), languageContext.get("commands.custom.raw.header").formatted(command))
@@ -769,7 +781,6 @@ public class CustomCmds {
                 }
 
                 String[] args = ctx.getArguments();
-
                 if (args.length < 2) {
                     ctx.sendLocalized("commands.custom.rename.not_enough_args", EmoteReference.ERROR);
                     return;
@@ -891,7 +902,18 @@ public class CustomCmds {
                         return;
                     }
 
-                    custom.getValues().addAll(c.getValues());
+                    final var values = c.getValues();
+                    var customLimit = 50;
+                    if (ctx.getConfig().isPremiumBot() || ctx.getDBGuild().isPremium()) {
+                        customLimit = 100;
+                    }
+
+                    if (values.size() > customLimit) {
+                        ctx.sendLocalized("commands.custom.add.too_many_responses", EmoteReference.ERROR, values.size());
+                        return;
+                    }
+
+                    custom.getValues().addAll(values);
                 } else {
                     // Are the first two checks redundant?
                     if (!ctx.getConfig().isPremiumBot() && !ctx.getDBGuild().isPremium() && db.getCustomCommands(ctx.getGuild()).size() > 100) {

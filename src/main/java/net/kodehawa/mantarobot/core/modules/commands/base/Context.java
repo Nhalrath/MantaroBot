@@ -29,12 +29,10 @@ import net.kodehawa.mantarobot.core.modules.commands.i18n.I18nContext;
 import net.kodehawa.mantarobot.data.Config;
 import net.kodehawa.mantarobot.data.MantaroData;
 import net.kodehawa.mantarobot.db.ManagedDatabase;
-import net.kodehawa.mantarobot.db.entities.DBGuild;
-import net.kodehawa.mantarobot.db.entities.DBUser;
-import net.kodehawa.mantarobot.db.entities.Marriage;
-import net.kodehawa.mantarobot.db.entities.Player;
+import net.kodehawa.mantarobot.db.entities.*;
 import net.kodehawa.mantarobot.db.entities.helpers.UserData;
 import net.kodehawa.mantarobot.utils.StringUtils;
+import net.kodehawa.mantarobot.utils.Utils;
 import net.kodehawa.mantarobot.utils.commands.CustomFinderUtil;
 import redis.clients.jedis.JedisPool;
 
@@ -42,6 +40,7 @@ import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 public class Context {
     private final MantaroBot bot = MantaroBot.getInstance();
@@ -50,8 +49,8 @@ public class Context {
 
     private final GuildMessageReceivedEvent event;
     private final String content;
+    private final boolean isMentionPrefix;
     private I18nContext languageContext;
-    private boolean isMentionPrefix;
 
     public Context(GuildMessageReceivedEvent event, I18nContext languageContext, String content, boolean isMentionPrefix) {
         this.event = event;
@@ -196,6 +195,26 @@ public class Context {
         return managedDatabase.getPlayerForSeason(member, getConfig().getCurrentSeason());
     }
 
+    public PlayerStats getPlayerStats() {
+        return managedDatabase.getPlayerStats(getMember());
+    }
+
+    public PlayerStats getPlayerStats(String id) {
+        return managedDatabase.getPlayerStats(id);
+    }
+
+    public PlayerStats getPlayerStats(User user) {
+        return managedDatabase.getPlayerStats(user);
+    }
+
+    public PlayerStats getPlayerStats(Member member) {
+        return managedDatabase.getPlayerStats(member);
+    }
+
+    public MantaroObj getMantaroData() {
+        return managedDatabase.getMantaroData();
+    }
+
     public boolean isSeasonal() {
         Map<String, String> optionalArguments = getOptionalArguments();
         return optionalArguments.containsKey("season") || optionalArguments.containsKey("s");
@@ -232,7 +251,9 @@ public class Context {
     }
 
     public void sendFormat(String message, Object... format) {
-        getChannel().sendMessageFormat(message, format).queue();
+        getChannel().sendMessage(
+                String.format(Utils.getLocaleFromLanguage(getLanguageContext()), message, format)
+        ).queue();
     }
 
     public void send(MessageEmbed embed) {
@@ -242,7 +263,10 @@ public class Context {
     }
 
     public void sendLocalized(String localizedMessage, Object... args) {
-        getChannel().sendMessageFormat(languageContext.get(localizedMessage), args).queue();
+        // Stop swallowing issues with String replacements (somehow really common)
+        getChannel().sendMessage(
+                String.format(Utils.getLocaleFromLanguage(getLanguageContext()), languageContext.get(localizedMessage), args)
+        ).queue(success -> {}, Throwable::printStackTrace);
     }
 
     public void sendLocalized(String localizedMessage) {
@@ -250,19 +274,29 @@ public class Context {
     }
 
     public void sendStripped(String message) {
-        getChannel().sendMessageFormat(message)
+        getChannel().sendMessage(message)
                 .allowedMentions(EnumSet.noneOf(Message.MentionType.class))
                 .queue();
     }
 
     public void sendStrippedLocalized(String localizedMessage, Object... args) {
-        getChannel().sendMessageFormat(languageContext.get(localizedMessage), args)
-                .allowedMentions(EnumSet.noneOf(Message.MentionType.class))
-                .queue();
+        getChannel().sendMessage(String.format(
+                Utils.getLocaleFromLanguage(getLanguageContext()), languageContext.get(localizedMessage), args)
+        ).allowedMentions(EnumSet.noneOf(Message.MentionType.class)).queue();
     }
 
-    public Task<List<Member>> findMember(String query, Message message) {
-        return CustomFinderUtil.lookupMember(getGuild(), this, query);
+    public Task<List<Member>> findMember(String query, Consumer<List<Member>> success) {
+        return CustomFinderUtil.lookupMember(getGuild(), this, query).onSuccess(s -> {
+            try {
+                success.accept(s);
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        });
+    }
+
+    public boolean isUserBlacklisted(String id) {
+        return getMantaroData().getBlackListedUsers().contains(id);
     }
 
     public User retrieveUserById(String id) {

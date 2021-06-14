@@ -28,6 +28,7 @@ import net.kodehawa.mantarobot.core.modules.commands.base.CommandCategory;
 import net.kodehawa.mantarobot.core.modules.commands.base.Context;
 import net.kodehawa.mantarobot.core.modules.commands.help.HelpContent;
 import net.kodehawa.mantarobot.utils.StringUtils;
+import net.kodehawa.mantarobot.utils.Utils;
 import net.kodehawa.mantarobot.utils.commands.CustomFinderUtil;
 import net.kodehawa.mantarobot.utils.commands.EmoteReference;
 import org.slf4j.Logger;
@@ -308,7 +309,7 @@ public class ModerationCmds {
                 final var finalReason = "Kicked by %#s: %s".formatted(ctx.getAuthor(), reason);
                 var memberRaw = args[0];
 
-                ctx.findMember(memberRaw, ctx.getMessage()).onSuccess(members -> {
+                ctx.findMember(memberRaw, members -> {
                     var member = CustomFinderUtil.findMember(memberRaw, members, ctx);
                     if (member == null)
                         return;

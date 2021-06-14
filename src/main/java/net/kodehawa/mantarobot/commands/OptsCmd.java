@@ -110,7 +110,7 @@ public class OptsCmd {
                                         .setAuthor(option.getOptionName(), null, ctx.getAuthor().getEffectiveAvatarUrl())
                                         .setDescription(option.getDescription())
                                         .setThumbnail("https://i.imgur.com/lFTJSE4.png")
-                                        .addField("Type", option.getType().toString(), false);
+                                        .addField(EmoteReference.PENCIL.toHeaderString() + "Type", option.getType().toString(), false);
 
                                 ctx.send(builder.build());
                             } catch (IndexOutOfBoundsException ignored) { }
@@ -129,11 +129,11 @@ public class OptsCmd {
                     }
 
                     name.append(str);
-                    var option = Option.getOptionMap().get(name.toString());
+                    var lookup = name.toString().replace("\n", "");
+                    var option = Option.getOptionMap().get(lookup);
 
                     if (option != null) {
-                        var callable = Option.getOptionMap().get(name.toString()).getEventConsumer();
-
+                        var callable = option.getEventConsumer();
                         try {
                             String[] a;
                             if (++i < args.length) {
@@ -183,13 +183,13 @@ public class OptsCmd {
 
                     final var guild = ctx.getGuild();
                     var opts = StringUtils.parseArguments(args);
-                    if (opts.containsKey("print")) {
+                    if (opts.containsKey("print") || opts.containsKey("paste")) {
                         var builder = new StringBuilder();
                         for (var entry : fieldMap.entrySet()) {
                             builder.append("* ").append(entry.getKey()).append(": ").append(entry.getValue().getRight()).append("\n");
                         }
 
-                        ctx.send("Send this: " + Utils.paste(builder.toString()));
+                        ctx.sendFormat("Send this: %s", Utils.paste(builder.toString()));
                         return;
                     }
 
@@ -231,6 +231,9 @@ public class OptsCmd {
                     var ranPolls = temp.getQuoteLastId();
                     var gameTimeoutExpectedAt = temp.getGameTimeoutExpectedAt();
                     var cases = temp.getCases();
+                    var allowedBirthdays = temp.getAllowedBirthdays();
+                    var notified = temp.isNotifiedFromBirthdayChange();
+                    var greetReceived = temp.hasReceivedGreet();
 
                     //Assign everything all over again
                     var newDbGuild = DBGuild.of(dbGuild.getId(), dbGuild.getPremiumUntil());
@@ -241,6 +244,9 @@ public class OptsCmd {
                     newTmp.setCases(cases);
                     newTmp.setPremiumKey(premiumKey);
                     newTmp.setQuoteLastId(quoteLastId);
+                    newTmp.setAllowedBirthdays(allowedBirthdays);
+                    newTmp.setNotifiedFromBirthdayChange(notified);
+                    newTmp.setHasReceivedGreet(greetReceived);
 
                     newDbGuild.saveAsync();
 

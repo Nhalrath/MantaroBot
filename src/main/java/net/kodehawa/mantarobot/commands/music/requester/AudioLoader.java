@@ -68,12 +68,13 @@ public class AudioLoader implements AudioLoadResultHandler {
 
     @Override
     public void playlistLoaded(AudioPlaylist playlist) {
+        final var member = event.getMember();
         if (playlist.isSearchResult()) {
             if (!skipSelection) {
                 onSearch(playlist);
             } else {
                 loadSingle(playlist.getTracks().get(0), false,
-                        db.getGuild(event.getGuild()), db.getUser(event.getMember())
+                        db.getGuild(event.getGuild()), db.getUser(member)
                 );
             }
 
@@ -83,7 +84,7 @@ public class AudioLoader implements AudioLoadResultHandler {
         try {
             var count = 0;
             var dbGuild = db.getGuild(event.getGuild());
-            var user = db.getUser(event.getMember());
+            var user = db.getUser(member);
             var guildData = dbGuild.getData();
 
             for (var track : playlist.getTracks()) {
@@ -113,7 +114,7 @@ public class AudioLoader implements AudioLoadResultHandler {
             }
 
             event.getChannel().sendMessageFormat(language.get("commands.music_general.loader.loaded_playlist"),
-                    EmoteReference.CORRECT, count, playlist.getName(),
+                    EmoteReference.SATELLITE, count, playlist.getName(),
                     Utils.formatDuration(
                             playlist.getTracks()
                                     .stream()
@@ -133,6 +134,10 @@ public class AudioLoader implements AudioLoadResultHandler {
     @Override
     public void loadFailed(FriendlyException exception) {
         if (failureCount == 0) {
+            if (exception.getMessage() == null) {
+                event.getChannel().sendMessageFormat(language.get("commands.music_general.loader.unknown_error_loading"), EmoteReference.ERROR).queue();
+            }
+
             event.getChannel().sendMessageFormat(
                     language.get("commands.music_general.loader.error_loading"), EmoteReference.ERROR, exception.getMessage()
             ).queue();

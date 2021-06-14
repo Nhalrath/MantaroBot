@@ -18,6 +18,5 @@ package net.kodehawa.mantarobot.commands.currency.item.special.helpers;
 
 public interface Castable {
     int getCastLevelRequired();
-
     int getMaximumCastAmount();
 }

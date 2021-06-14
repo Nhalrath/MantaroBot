@@ -97,7 +97,7 @@ public class InfoCmds {
         cr.register("avatar", new SimpleCommand(CommandCategory.INFO) {
             @Override
             protected void call(Context ctx, String content, String[] args) {
-                ctx.findMember(content, ctx.getMessage()).onSuccess(members -> {
+                ctx.findMember(content, members -> {
                     var member = CustomFinderUtil.findMemberDefault(content, members, ctx, ctx.getMember());
                     if (member == null) {
                         return;
@@ -171,7 +171,7 @@ public class InfoCmds {
 
                 ctx.send(new EmbedBuilder()
                         .setAuthor(languageContext.get("commands.serverinfo.header"), null, guild.getIconUrl())
-                        .setColor(guild.getOwner().getColor() == null ? Color.PINK: guild.getOwner().getColor())
+                        .setColor(owner.getColor() == null ? Color.PINK: owner.getColor())
                         .setDescription(str)
                         .setThumbnail(guild.getIconUrl())
                         .addField(
@@ -247,11 +247,11 @@ public class InfoCmds {
                         .collect(Collectors.joining(" "));
 
                 var guildPrefix = dbGuild.getData().getGuildCustomPrefix();
-
-                ctx.sendLocalized("commands.prefix.header", EmoteReference.HEART,
-                        defaultPrefix, guildPrefix == null ?
-                                ctx.getLanguageContext().get("commands.prefix.none") : guildPrefix
-                );
+                var guildPrefixString = ctx.getLanguageContext().get("commands.prefix.none");
+                if (guildPrefix != null) {
+                    guildPrefixString = ctx.getLanguageContext().get("commands.prefix.guild_prefix").formatted(guildPrefix);
+                }
+                ctx.sendLocalized("commands.prefix.header", EmoteReference.HEART, defaultPrefix, guildPrefixString);
             }
 
             @Override
@@ -273,7 +273,7 @@ public class InfoCmds {
         cr.register("userinfo", new SimpleCommand(CommandCategory.INFO) {
             @Override
             protected void call(Context ctx, String content, String[] args) {
-                ctx.findMember(content, ctx.getMessage()).onSuccess(members -> {
+                ctx.findMember(content, members -> {
                     var member = CustomFinderUtil.findMemberDefault(content, members, ctx, ctx.getMember());
                     if (member == null)
                         return;
@@ -379,6 +379,11 @@ public class InfoCmds {
         cr.register("roleinfo", new SimpleCommand(CommandCategory.INFO) {
             @Override
             protected void call(Context ctx, String content, String[] args) {
+                if (content.isEmpty()) {
+                    ctx.sendLocalized("commands.roleinfo.no_content", EmoteReference.ERROR);
+                    return;
+                }
+
                 var role = FinderUtils.findRole(ctx.getEvent(), content);
                 if (role == null) {
                     return;

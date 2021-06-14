@@ -32,7 +32,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.concurrent.TimeUnit;
 
 public class VoiceChannelListener implements EventListener {
-    private final RateLimiter vcRatelimiter = new RateLimiter(TimeUnit.SECONDS, 10);
+    private final RateLimiter vcRatelimiter = new RateLimiter(TimeUnit.SECONDS, 5);
 
     @Override
     public void onEvent(@NotNull GenericEvent event) {
@@ -87,8 +87,9 @@ public class VoiceChannelListener implements EventListener {
             return;
         }
 
+        var scheduler = musicManager.getTrackScheduler();
+        var player = musicManager.getLavaLink().getPlayer();
         if (event.isMuted()) {
-            var scheduler = musicManager.getTrackScheduler();
             if (scheduler.getCurrentTrack() != null && scheduler.getRequestedTextChannel() != null) {
                 var textChannel = scheduler.getRequestedTextChannel();
                 //Didn't ratelimit this one because mute can only be done by admins and such? Don't think it'll get abused.
@@ -99,11 +100,17 @@ public class VoiceChannelListener implements EventListener {
                     ).queue();
                 }
 
-                musicManager.getLavaLink().getPlayer().setPaused(true);
+                player.setPaused(true);
             }
         } else {
+            if (voiceState.getChannel() == null) {
+                return;
+            }
+
             if (!isAlone(voiceState.getChannel()) && musicManager.getTrackScheduler().getCurrentTrack() != null) {
-                musicManager.getLavaLink().getPlayer().setPaused(false);
+                if (!scheduler.isPausedManually()) {
+                    player.setPaused(false);
+                }
             }
         }
 
@@ -125,21 +132,32 @@ public class VoiceChannelListener implements EventListener {
             }
 
             var scheduler = musicManager.getTrackScheduler();
-            if (scheduler.getCurrentTrack() != null) {
-                if (musicManager.isAwaitingDeath()) {
-                    var textChannel = scheduler.getRequestedTextChannel();
-                    if (textChannel.canTalk() && vcRatelimiter.process(vc.getGuild().getId())) {
-                        textChannel.sendMessageFormat(
-                                scheduler.getLanguage().get("commands.music_general.listener.resumed"),
-                                EmoteReference.POPPER
-                        ).queue();
+            var player = musicManager.getLavaLink().getPlayer();
+            if (musicManager.isAwaitingDeath()) {
+                if (scheduler.getCurrentTrack() != null) {
+                    var channel = scheduler.getRequestedTextChannel();
+                    if (channel.canTalk() && vcRatelimiter.process(vc.getGuild().getId())) {
+                        if (scheduler.isPausedManually()) {
+                            channel.sendMessageFormat(
+                                    scheduler.getLanguage().get("commands.music_general.listener.not_resumed"),
+                                    EmoteReference.POPPER
+                            ).queue();
+                        } else {
+                            channel.sendMessageFormat(
+                                    scheduler.getLanguage().get("commands.music_general.listener.resumed"),
+                                    EmoteReference.POPPER
+                            ).queue();
+                        }
                     }
                 }
-            }
 
-            musicManager.cancelLeave();
-            musicManager.setAwaitingDeath(false);
-            musicManager.getLavaLink().getPlayer().setPaused(false);
+                if (!scheduler.isPausedManually()) {
+                    player.setPaused(false);
+                }
+
+                musicManager.cancelLeave();
+                musicManager.setAwaitingDeath(false);
+            }
         }
     }
 
@@ -159,6 +177,7 @@ public class VoiceChannelListener implements EventListener {
             }
 
             var scheduler = musicManager.getTrackScheduler();
+            var player = musicManager.getLavaLink().getPlayer();
             if (scheduler != null && scheduler.getCurrentTrack() != null && scheduler.getRequestedTextChannel() != null) {
                 var textChannel = scheduler.getRequestedTextChannel();
                 if (textChannel.canTalk() && vcRatelimiter.process(vc.getGuild().getId())) {
@@ -171,7 +190,7 @@ public class VoiceChannelListener implements EventListener {
 
             musicManager.setAwaitingDeath(true);
             musicManager.scheduleLeave();
-            musicManager.getLavaLink().getPlayer().setPaused(true);
+            player.setPaused(true);
         }
     }
 

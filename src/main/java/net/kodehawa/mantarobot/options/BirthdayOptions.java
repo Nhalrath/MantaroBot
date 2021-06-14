@@ -17,9 +17,8 @@
 package net.kodehawa.mantarobot.options;
 
 import com.google.common.eventbus.Subscribe;
+import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Member;
-import net.dv8tion.jda.api.entities.Role;
-import net.dv8tion.jda.api.entities.TextChannel;
 import net.dv8tion.jda.api.entities.User;
 import net.kodehawa.mantarobot.core.listeners.operations.InteractiveOperations;
 import net.kodehawa.mantarobot.core.listeners.operations.core.Operation;
@@ -32,9 +31,13 @@ import net.kodehawa.mantarobot.options.event.OptionRegistryEvent;
 import net.kodehawa.mantarobot.utils.commands.CustomFinderUtil;
 import net.kodehawa.mantarobot.utils.commands.EmoteReference;
 import net.kodehawa.mantarobot.utils.commands.FinderUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Option
 public class BirthdayOptions extends OptionHandler {
+    private final Logger log = LoggerFactory.getLogger(BirthdayOptions.class);
+
     public BirthdayOptions() {
         setType(OptionType.GUILD);
     }
@@ -50,7 +53,7 @@ public class BirthdayOptions extends OptionHandler {
             }
 
             String query = String.join(" ", args);
-            ctx.findMember(query, ctx.getMessage()).onSuccess(members -> {
+            ctx.findMember(query, members -> {
                 final var m = CustomFinderUtil.findMemberDefault(query, members, ctx, ctx.getMember());
                 if (m == null) {
                     return;
@@ -60,8 +63,8 @@ public class BirthdayOptions extends OptionHandler {
                 final var guildData = dbGuild.getData();
                 final var guild = ctx.getGuild();
 
-                TextChannel birthdayChannel = guildData.getBirthdayChannel() == null ? null : guild.getTextChannelById(guildData.getBirthdayChannel());
-                Role birthdayRole = guildData.getBirthdayRole() == null ? null : guild.getRoleById(guildData.getBirthdayRole());
+                var birthdayChannel = guildData.getBirthdayChannel() == null ? null : guild.getTextChannelById(guildData.getBirthdayChannel());
+                var birthdayRole = guildData.getBirthdayRole() == null ? null : guild.getRoleById(guildData.getBirthdayRole());
 
                 if (birthdayChannel == null) {
                     ctx.sendLocalized("options.birthday_test.no_bd_channel", EmoteReference.ERROR);
@@ -78,26 +81,38 @@ public class BirthdayOptions extends OptionHandler {
                     return;
                 }
 
+                if (!ctx.getSelfMember().hasPermission(Permission.MANAGE_ROLES)) {
+                    ctx.sendLocalized("options.birthday_test.no_role_permission", EmoteReference.ERROR);
+                    return;
+                }
+
                 if (!ctx.getSelfMember().canInteract(birthdayRole)) {
                     ctx.sendLocalized("options.birthday_test.cannot_interact", EmoteReference.ERROR);
                     return;
                 }
 
-                User user = m.getUser();
-                String message = String.format("%s**%s is a year older now! Wish them a happy birthday.** :tada: (test)", EmoteReference.POPPER, m.getEffectiveName());
-                if (dbGuild.getData().getBirthdayMessage() != null) {
-                    message = dbGuild.getData().getBirthdayMessage().replace("$(user)", m.getEffectiveName()).replace("$(usermention)", m.getAsMention());
-                }
+                try {
+                    User user = m.getUser();
+                    String message = String.format("%s**%s is a year older now! Wish them a happy birthday.** :tada: (test)", EmoteReference.POPPER, m.getEffectiveName());
+                    if (dbGuild.getData().getBirthdayMessage() != null) {
+                        message = dbGuild.getData().getBirthdayMessage().replace("$(user)", m.getEffectiveName()).replace("$(usermention)", m.getAsMention());
+                    }
 
-                //Value used in lambda... blabla :c
-                final String finalMessage = message;
-                guild.addRoleToMember(m, birthdayRole).queue(success -> {
-                    birthdayChannel.sendMessage(finalMessage).queue(s -> {
-                        ctx.sendLocalized("options.birthday_test.success", EmoteReference.CORRECT, birthdayChannel.getName(), user.getName(), birthdayRole.getName());
-                    }, error -> {
-                        ctx.sendLocalized("options.birthday_test.error", EmoteReference.CORRECT, birthdayChannel.getName(), user.getName(), birthdayRole.getName());
-                    });
-                });
+                    //Value used in lambda... blabla :c
+                    final String finalMessage = message;
+                    guild.addRoleToMember(m, birthdayRole).queue(
+                            success -> birthdayChannel.sendMessage(finalMessage).queue(
+                                    s -> ctx.sendLocalized("options.birthday_test.success",
+                                            EmoteReference.CORRECT, birthdayChannel.getName(), user.getName(), birthdayRole.getName()
+                                    ), error -> ctx.sendLocalized("options.birthday_test.error",
+                                            EmoteReference.CORRECT, birthdayChannel.getName(), user.getName(), birthdayRole.getName()
+                                    )
+                            ), error -> ctx.sendLocalized("options.birthday_test.error",
+                                    EmoteReference.CORRECT, birthdayChannel.getName(), user.getName(), birthdayRole.getName()
+                            ));
+                } catch (Exception e) {
+                    log.error("Error sending birthday test message!", e);
+                }
             });
         });
 
@@ -111,20 +126,19 @@ public class BirthdayOptions extends OptionHandler {
             }
 
             var lang = ctx.getLanguageContext();
-            DBGuild dbGuild = ctx.getDBGuild();
-            GuildData guildData = dbGuild.getData();
+            var dbGuild = ctx.getDBGuild();
+            var guildData = dbGuild.getData();
 
             try {
-                String channel = args[0];
-                String role = args[1];
+                var channel = args[0];
+                var role = args[1];
 
-                TextChannel channelObj = FinderUtils.findChannel(ctx.getEvent(), channel);
+                var channelObj = FinderUtils.findChannel(ctx.getEvent(), channel);
                 if (channelObj == null)
                     return;
 
-                String channelId = channelObj.getId();
-
-                Role roleObj = FinderUtils.findRole(ctx.getEvent(), role);
+                var channelId = channelObj.getId();
+                var roleObj = FinderUtils.findRole(ctx.getEvent(), role);
                 if (roleObj == null)
                     return;
 
@@ -168,16 +182,17 @@ public class BirthdayOptions extends OptionHandler {
                         EmoteReference.ERROR
                 );
             } catch (Exception ex) {
-                ctx.send(lang.get("general.invalid_syntax") + "\nCheck https://github.com/Mantaro/MantaroBot/wiki/Configuration for more information.");
+                ctx.send(lang.get("general.invalid_syntax") + "\nCheck https://github.com/Mantaro/MantaroBot/wiki/Birthday-101 for more information.");
             }
         });
 
         registerOption("birthday:disable", "Birthday disable", "Disables birthday monitoring.", (ctx) -> {
-            DBGuild dbGuild = ctx.getDBGuild();
-            GuildData guildData = dbGuild.getData();
+            var dbGuild = ctx.getDBGuild();
+            var guildData = dbGuild.getData();
             guildData.setBirthdayChannel(null);
+
             guildData.setBirthdayRole(null);
-            dbGuild.saveAsync();
+            dbGuild.saveUpdating();
             ctx.sendLocalized("options.birthday_disable.success", EmoteReference.MEGA);
         });
 
@@ -188,22 +203,23 @@ public class BirthdayOptions extends OptionHandler {
                 return;
             }
 
-            DBGuild dbGuild = ctx.getDBGuild();
-            GuildData guildData = dbGuild.getData();
+            var dbGuild = ctx.getDBGuild();
+            var guildData = dbGuild.getData();
 
-            String birthdayMessage = String.join(" ", args);
+            // Trim start/end whitespace and/or newlines.
+            String birthdayMessage = String.join(" ", args).trim();
             guildData.setBirthdayMessage(birthdayMessage);
-            dbGuild.saveAsync();
+            dbGuild.saveUpdating();
             ctx.sendLocalized("options.birthday_message_set.success", EmoteReference.CORRECT, birthdayMessage);
         });
 
         registerOption("birthday:message:clear", "Birthday message clear", "Clears the message to display on a new birthday",
                 "Clears the message to display on birthday", (ctx, args) -> {
-            DBGuild dbGuild = ctx.getDBGuild();
-            GuildData guildData = dbGuild.getData();
+            var dbGuild = ctx.getDBGuild();
+            var guildData = dbGuild.getData();
 
             guildData.setBirthdayMessage(null);
-            dbGuild.saveAsync();
+            dbGuild.saveUpdating();
 
             ctx.sendLocalized("options.birthday_message_clear.success", EmoteReference.CORRECT);
         });
@@ -211,15 +227,15 @@ public class BirthdayOptions extends OptionHandler {
         registerOption("commands:birthdayblacklist:add", "Add someone to the birthday blacklist",
                 "Adds a person to the birthday blacklist",
                 "Add someone to the birthday blacklist", (ctx, args) -> {
-            DBGuild dbGuild = ctx.getDBGuild();
-            GuildData guildData = dbGuild.getData();
+            var dbGuild = ctx.getDBGuild();
+            var guildData = dbGuild.getData();
             if (args.length == 0) {
                 ctx.sendLocalized("options.birthdayblacklist.no_args", EmoteReference.ERROR);
                 return;
             }
 
             String content = String.join(" ", args);
-            ctx.findMember(content, ctx.getMessage()).onSuccess(members -> {
+            ctx.findMember(content, members -> {
                 Member member = CustomFinderUtil.findMemberDefault(content, members, ctx, ctx.getMember());
                 if (member == null)
                     return;
@@ -240,7 +256,7 @@ public class BirthdayOptions extends OptionHandler {
             }
 
             String content = String.join(" ", args);
-            ctx.findMember(content, ctx.getMessage()).onSuccess(members -> {
+            ctx.findMember(content, members -> {
                 Member member = CustomFinderUtil.findMemberDefault(content, members, ctx, ctx.getMember());
                 if (member == null)
                     return;

@@ -39,11 +39,9 @@ import java.util.stream.Collectors;
 public class Trivia extends Game<String> {
     private static final Logger log = LoggerFactory.getLogger("Game [Trivia]");
     private static final String OTDB_URL = "https://opentdb.com/api.php?amount=1&encode=base64";
-    private static final int maxAttempts = 2;
     private final TriviaDifficulty difficulty;
     private final List<String> expectedAnswer = new ArrayList<>();
     private boolean hardDiff = false;
-    private boolean isBool;
 
     public Trivia(TriviaDifficulty difficulty) {
         this.difficulty = difficulty;
@@ -54,7 +52,7 @@ public class Trivia extends Game<String> {
         InteractiveOperations.create(lobby.getChannel(), Long.parseLong(lobby.getPlayers().get(0)), 60, new InteractiveOperation() {
             @Override
             public int run(GuildMessageReceivedEvent event) {
-                return callDefault(event, lobby, players, expectedAnswer, getAttempts(), isBool ? 1 : maxAttempts, hardDiff ? 10 : 0);
+                return callDefault(event, lobby, players, expectedAnswer, getAttempts(), 1, hardDiff ? 10 : 0);
             }
 
             @Override
@@ -107,8 +105,6 @@ public class Trivia extends Game<String> {
             var diff = fromB64(question.getString("difficulty"));
 
             hardDiff = diff.equalsIgnoreCase("hard");
-            isBool = fromB64(question.getString("type")).equalsIgnoreCase("boolean");
-
             expectedAnswer.add(fromB64(question.getString("correct_answer")).trim());
 
             answers.add(expectedAnswer.get(0));
@@ -129,17 +125,17 @@ public class Trivia extends Game<String> {
                     .setThumbnail("https://i.imgur.com/7TITtHb.png")
                     .setDescription("**" + qu + "**")
                     .setColor(Color.PINK)
-                    .addField(languageContext.get("commands.game.trivia.possibilities"),
+                    .addField(EmoteReference.PENCIL.toHeaderString() + languageContext.get("commands.game.trivia.possibilities"),
                             sb.toString(), false
                     )
-                    .addField(languageContext.get("commands.game.trivia.difficulty"),
+                    .addField(EmoteReference.ZAP.toHeaderString() + languageContext.get("commands.game.trivia.difficulty"),
                             "`" + Utils.capitalize(diff) + "`", true
                     )
-                    .addField(languageContext.get("commands.game.trivia.category"),
+                    .addField(EmoteReference.CALENDAR2.toHeaderString() + languageContext.get("commands.game.trivia.category"),
                             "`" + category + "`", true
                     )
                     .setFooter(String.format(
-                            languageContext.get("commands.game.trivia_end_footer"), isBool ? 1 : 2),
+                            languageContext.get("commands.game.trivia_end_footer"), 1),
                             lobby.getEvent().getAuthor().getAvatarUrl()
                     );
 

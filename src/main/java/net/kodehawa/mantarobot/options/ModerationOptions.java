@@ -17,8 +17,8 @@
 package net.kodehawa.mantarobot.options;
 
 import com.google.common.eventbus.Subscribe;
-import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.ISnowflake;
+import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.TextChannel;
 import net.dv8tion.jda.api.entities.User;
 import net.kodehawa.mantarobot.core.modules.commands.base.CommandPermission;
@@ -28,15 +28,19 @@ import net.kodehawa.mantarobot.options.annotations.Option;
 import net.kodehawa.mantarobot.options.core.OptionHandler;
 import net.kodehawa.mantarobot.options.core.OptionType;
 import net.kodehawa.mantarobot.options.event.OptionRegistryEvent;
+import net.kodehawa.mantarobot.utils.Utils;
 import net.kodehawa.mantarobot.utils.commands.EmoteReference;
 import net.kodehawa.mantarobot.utils.commands.FinderUtils;
 
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Option
 public class ModerationOptions extends OptionHandler {
+    private static final Pattern offsetRegex = Pattern.compile("(?:UTC|GMT)[+-][0-9]{1,2}(:[0-9]{1,2})?", Pattern.CASE_INSENSITIVE);
+
     public ModerationOptions() {
         setType(OptionType.MODERATION);
     }
@@ -48,33 +52,38 @@ public class ModerationOptions extends OptionHandler {
                         You need to mention the user. You can mention multiple users.
                         **Example:** `~>opts localblacklist add @user1 @user2`""",
                 "Adds someone to the local blacklist.", (ctx, args) -> {
-            List<User> mentioned = ctx.getMentionedUsers();
+            List<Member> mentioned = ctx.getMentionedMembers();
 
             if (mentioned.isEmpty()) {
                 ctx.sendLocalized("options.localblacklist_add.invalid", EmoteReference.ERROR);
                 return;
             }
 
-            if (mentioned.contains(ctx.getAuthor())) {
+            if (mentioned.contains(ctx.getMember())) {
                 ctx.sendLocalized("options.localblacklist_add.yourself_notice", EmoteReference.ERROR);
                 return;
             }
 
-            Guild guild = ctx.getGuild();
-            if (mentioned.stream().anyMatch(u -> CommandPermission.ADMIN.test(guild.getMember(u)))) {
+            if (mentioned.stream().anyMatch(u -> u.getUser().isBot())) {
+                ctx.sendLocalized("options.localblacklist_add.bot_notice", EmoteReference.ERROR);
+                return;
+            }
+
+            if (mentioned.stream().anyMatch(CommandPermission.ADMIN::test)) {
                 ctx.sendLocalized("options.localblacklist_add.admin_notice", EmoteReference.ERROR);
                 return;
             }
 
             DBGuild dbGuild = ctx.getDBGuild();
             GuildData guildData = dbGuild.getData();
-            List<String> toBlackList = mentioned.stream().map(ISnowflake::getId).collect(Collectors.toList());
+            List<String> toBlacklist = mentioned.stream().map(ISnowflake::getId).collect(Collectors.toList());
 
-            String blacklisted = mentioned.stream().map(
-                    user -> user.getName() + "#" + user.getDiscriminator()).collect(Collectors.joining(",")
-            );
+            String blacklisted = mentioned.stream()
+                    .map(Member::getUser)
+                    .map(User::getAsTag)
+                    .collect(Collectors.joining(","));
 
-            guildData.getDisabledUsers().addAll(toBlackList);
+            guildData.getDisabledUsers().addAll(toBlacklist);
             dbGuild.save();
 
             ctx.sendLocalized("options.localblacklist_add.success", EmoteReference.CORRECT, blacklisted);
@@ -85,7 +94,7 @@ public class ModerationOptions extends OptionHandler {
                         You need to mention the user. You can mention multiple users.
                         **Example:** `~>opts localblacklist remove @user1 @user2`""",
                 "Removes someone from the local blacklist.", (ctx, args) -> {
-            List<User> mentioned = ctx.getMentionedUsers();
+            List<Member> mentioned = ctx.getMentionedMembers();
 
             if (mentioned.isEmpty()) {
                 ctx.sendLocalized("options.localblacklist_remove.invalid", EmoteReference.ERROR);
@@ -95,15 +104,17 @@ public class ModerationOptions extends OptionHandler {
             DBGuild dbGuild = ctx.getDBGuild();
             GuildData guildData = dbGuild.getData();
 
-            List<String> toUnBlackList = mentioned.stream().map(ISnowflake::getId).collect(Collectors.toList());
-            String unBlackListed = mentioned.stream().map(
-                    user -> user.getName() + "#" + user.getDiscriminator()).collect(Collectors.joining(",")
+            List<String> toUnBlacklist = mentioned.stream().map(ISnowflake::getId).collect(Collectors.toList());
+            String unBlacklisted = mentioned.stream()
+                    .map(Member::getUser)
+                    .map(User::getAsTag)
+                    .collect(Collectors.joining(",")
             );
 
-            guildData.getDisabledUsers().removeAll(toUnBlackList);
+            guildData.getDisabledUsers().removeAll(toUnBlacklist);
             dbGuild.save();
 
-            ctx.sendLocalized("options.localblacklist_remove.success", EmoteReference.CORRECT, unBlackListed);
+            ctx.sendLocalized("options.localblacklist_remove.success", EmoteReference.CORRECT, unBlacklisted);
         });
 
         registerOption("logs:enable", "Enable logs",
@@ -185,6 +196,40 @@ public class ModerationOptions extends OptionHandler {
             if (ch != null) {
                 consumer.accept(ch);
             }
+        });
+
+        registerOption("logs:timezone", "Sets the log timeozne", """
+                Sets the log timezone.
+                For example, `~>opts logs timezone America/Chicago`
+                """, "Sets the logs timezone", (ctx, args) -> {
+            if (args.length < 1) {
+                ctx.sendLocalized("options.logs_timezone.not_specified", EmoteReference.ERROR);
+                return;
+            }
+
+            var timezone = args[0];
+            if (offsetRegex.matcher(timezone).matches()) {
+                timezone = timezone.toUpperCase().replace("UTC", "GMT");
+            }
+
+            if (!Utils.isValidTimeZone(timezone)) {
+                ctx.sendLocalized("options.logs_timezone.invalid", EmoteReference.ERROR);
+                return;
+            }
+
+            var dbGuild = ctx.getDBGuild();
+            dbGuild.getData().setLogTimezone(timezone);
+            dbGuild.saveUpdating();
+
+            ctx.sendLocalized("options.logs_timezone.success", EmoteReference.CORRECT, timezone);
+        });
+
+        registerOption("logs:timezonereset", "Resets the log timezone", "Resets the log timezone", (ctx) -> {
+            var dbGuild = ctx.getDBGuild();
+            dbGuild.getData().setLogTimezone(null);
+            dbGuild.saveUpdating();
+
+            ctx.sendLocalized("options.logs_timezonereset.success", EmoteReference.CORRECT);
         });
 
         registerOption("logs:disable", "Disable logs",
